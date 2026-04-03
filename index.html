@@ -94,6 +94,11 @@
             border-radius: 10px;
             object-fit: cover;
         }
+        /* Loader Overlay for automatic login check */
+        #page-loader {
+            position: fixed; inset: 0; background: #0f172a; z-index: 99999;
+            display: flex; justify-content: center; align-items: center;
+        }
     </style>
 
     <link rel="icon" type="image/png" sizes="32x32" href="https://meetwoyou.github.io/favicon-32x32.png">
@@ -103,9 +108,13 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
 </head>
 <body class="min-h-screen flex items-center justify-center p-6">
+    <div id="page-loader">
+        <div class="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-purple-500"></div>
+    </div>
+    
     <div class="bg-animate"></div>
 
-    <div class="glass-card p-10 rounded-[2.5rem] w-full max-w-md relative overflow-hidden">
+    <div id="auth-container" class="glass-card p-10 rounded-[2.5rem] w-full max-w-md relative overflow-hidden hidden">
         <div class="absolute -top-24 -left-24 w-48 h-48 bg-purple-600/20 rounded-full blur-3xl"></div>
         
         <header class="text-center mb-10">
@@ -170,7 +179,7 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getAuth, GoogleAuthProvider, signInWithPopup, createUserWithEmailAndPassword, signInWithEmailAndPassword, sendPasswordResetEmail, updateProfile } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+        import { getAuth, GoogleAuthProvider, signInWithPopup, createUserWithEmailAndPassword, signInWithEmailAndPassword, sendPasswordResetEmail, updateProfile, setPersistence, browserLocalPersistence, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyBn3x2qSo8k6a9wrxNfLmVliWMmsUk8wfY",
@@ -188,19 +197,23 @@
 
         const notify = (msg, type = 'success') => {
             Swal.mixin({
-                toast: true,
-                position: 'top-end',
-                showConfirmButton: false,
-                timer: 3000,
-                timerProgressBar: true,
-                background: '#1e293b',
-                color: '#fff'
+                toast: true, position: 'top-end', showConfirmButton: false, timer: 3000, timerProgressBar: true, background: '#1e293b', color: '#fff'
             }).fire({ icon: type, title: msg });
         };
 
         const handleRedirection = (userEmail) => {
-            window.location.href = userEmail.toLowerCase() === adminEmail.toLowerCase() ? "admin.html" : "dashboard.html";
+            window.location.replace(userEmail.toLowerCase() === adminEmail.toLowerCase() ? "admin.html" : "dashboard.html");
         };
+
+        // Automatic Session Management
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                handleRedirection(user.email);
+            } else {
+                document.getElementById('page-loader').classList.add('hidden');
+                document.getElementById('auth-container').classList.remove('hidden');
+            }
+        });
 
         window.togglePass = (id, icon) => {
             const el = document.getElementById(id);
@@ -217,7 +230,6 @@
             document.getElementById(id).classList.remove('hidden');
         };
 
-        // Firebase - Reset Password
         document.getElementById('reset-btn').onclick = async () => {
             const email = document.getElementById('forgot-email').value;
             if(!email) return notify("Enter email first!", "error");
@@ -228,7 +240,6 @@
             } catch (error) { notify(error.message, "error"); }
         };
 
-        // Firebase - Signup
         document.getElementById('signup-btn').onclick = async () => {
             const fName = document.getElementById('signup-first-name').value;
             const lName = document.getElementById('signup-last-name').value;
@@ -236,52 +247,42 @@
             const password = document.getElementById('signup-password').value;
             if(!email || !password || !fName) return notify("All fields required!", "error");
             try {
+                await setPersistence(auth, browserLocalPersistence);
                 const res = await createUserWithEmailAndPassword(auth, email, password);
                 await updateProfile(res.user, { displayName: `${fName} ${lName}` });
-                notify(`Account created! Welcome ${fName}`);
-                setTimeout(() => handleRedirection(email), 1500); 
+                notify(`Welcome ${fName}`);
             } catch (error) { notify(error.message, "error"); }
         };
 
-        // Firebase - Login
         document.getElementById('login-btn').onclick = async () => {
             const email = document.getElementById('login-email').value;
             const password = document.getElementById('login-password').value;
             if(!email || !password) return notify("Please fill all fields!", "error");
             try {
+                await setPersistence(auth, browserLocalPersistence);
                 await signInWithEmailAndPassword(auth, email, password);
-                notify("Login Successful!");
-                setTimeout(() => handleRedirection(email), 1500); 
             } catch (error) { notify("Invalid email or password", "error"); }
         };
 
-        // Firebase - Google Login
         document.getElementById('google-login').onclick = async () => {
             try {
-                const res = await signInWithPopup(auth, provider);
-                notify("Welcome " + res.user.displayName);
-                setTimeout(() => handleRedirection(res.user.email), 1500); 
+                await setPersistence(auth, browserLocalPersistence);
+                await signInWithPopup(auth, provider);
             } catch (error) { notify("Google sign-in failed", "error"); }
         };
     </script>
 
     <script>
-    // 1. Service Worker Registration
     if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
-            navigator.serviceWorker.register('./sw.js').then(reg => {
-                reg.update();
-                console.log('SW Active');
-            });
+            navigator.serviceWorker.register('./sw.js').then(reg => { reg.update(); });
         });
     }
 
-    // 2. Top Install Banner
     let deferredPrompt;
     window.addEventListener('beforeinstallprompt', (e) => {
         e.preventDefault();
         deferredPrompt = e;
-        
         setTimeout(() => {
             if (!document.getElementById('pwa-install-banner')) {
                 const banner = document.createElement('div');
@@ -295,23 +296,15 @@
                     <button style="background:#7c3aed;padding:6px 15px;border-radius:10px;font-size:12px;font-weight:bold">Install</button>
                 `;
                 document.body.appendChild(banner);
-
                 banner.addEventListener('click', async () => {
                     banner.remove();
                     if (deferredPrompt) {
                         deferredPrompt.prompt();
-                        const { outcome } = await deferredPrompt.userChoice;
                         deferredPrompt = null;
                     }
                 });
             }
         }, 2000);
-    });
-
-    window.addEventListener('appinstalled', () => {
-        if(document.getElementById('pwa-install-banner')) {
-            document.getElementById('pwa-install-banner').remove();
-        }
     });
     </script>
 </body>
