@@ -1,16 +1,13 @@
-## Hi there 👋
+# Meetwoyou
 
-<!--
-**meetwoyou/Meetwoyou** is a ✨ _special_ ✨ repository because its `README.md` (this file) appears on your GitHub profile.
+Static Meetwoyou web app with upgraded premium admin dashboard.
 
-Here are some ideas to get you started:
+## Upload to GitHub
 
-- 🔭 I’m currently working on ...
-- 🌱 I’m currently learning ...
-- 👯 I’m looking to collaborate on ...
-- 🤔 I’m looking for help with ...
-- 💬 Ask me about ...
-- 📫 How to reach me: ...
-- 😄 Pronouns: ...
-- ⚡ Fun fact: ...
--->
+Upload all files from this zip directly to the root of your repository. There is no extra parent folder in the archive. The original Firebase/Cloudinary backend connections are kept in place.
+
+Main entry files:
+- `index.html` — login/sign up
+- `dashboard.html` — user app
+- `messenger.html` — messaging
+- `admin.html` — premium admin console
